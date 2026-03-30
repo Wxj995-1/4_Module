@@ -17,7 +17,7 @@ EventLoopThread::~EventLoopThread()
     }
 }
 
-// 由主线程调用，负责启动子线程 + 等待子线程创建好 EventLoop + 返回 loop 指针（给主线程用）
+// 由主线程调用，负责启动子线程 + 等待子线程创建好 EventLoop + 返回 loop 指针 （给主线程用）
 EventLoop *EventLoopThread::startLoop()
 {
     thread_.start(); // 启动底层的新线程
