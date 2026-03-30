@@ -6,17 +6,22 @@
 #include <unistd.h>
 #include <strings.h>
 
+/*
+EventLoop 是总指挥（调度中枢），Poller 是监听工具（epoll 封装），Channel 是事件载体（每个fd）。
+EventLoop 持有 Poller，管理所有 Channel；Poller 监听事件，通知 EventLoop；EventLoop 分发事件给 Channel 处理。
+一个线程 = 一个 EventLoop = 一个 Poller = 多个 Channel
+*/
+
 // channel未添加到poller中
-const int kNew = -1;  // channel的成员index_ = -1
+const int kNew = -1; // channel的成员index_ = -1
 // channel已添加到poller中
 const int kAdded = 1;
 // channel从poller中删除
 const int kDeleted = 2;
 
+// EPOLL_CLOEXEC :进程 fork 时自动关闭 epollfd，避免子进程继承导致资源泄漏
 EPollPoller::EPollPoller(EventLoop *loop)
-    : Poller(loop)
-    , epollfd_(::epoll_create1(EPOLL_CLOEXEC))
-    , events_(kInitEventListSize)  // vector<epoll_event>
+    : Poller(loop), epollfd_(::epoll_create1(EPOLL_CLOEXEC)), events_(kInitEventListSize) // vector<epoll_event>
 {
     if (epollfd_ < 0)
     {
@@ -24,7 +29,7 @@ EPollPoller::EPollPoller(EventLoop *loop)
     }
 }
 
-EPollPoller::~EPollPoller() 
+EPollPoller::~EPollPoller()
 {
     ::close(epollfd_);
 }
@@ -67,7 +72,7 @@ Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels)
  *            EventLoop  =>   poller.poll
  *     ChannelList      Poller
  *                     ChannelMap  <fd, channel*>   epollfd
- */ 
+ */
 void EPollPoller::updateChannel(Channel *channel)
 {
     const int index = channel->index();
@@ -84,7 +89,7 @@ void EPollPoller::updateChannel(Channel *channel)
         channel->set_index(kAdded);
         update(EPOLL_CTL_ADD, channel);
     }
-    else  // channel已经在poller上注册过了
+    else // channel已经在poller上注册过了
     {
         int fd = channel->fd();
         if (channel->isNoneEvent())
@@ -100,13 +105,13 @@ void EPollPoller::updateChannel(Channel *channel)
 }
 
 // 从poller中删除channel
-void EPollPoller::removeChannel(Channel *channel) 
+void EPollPoller::removeChannel(Channel *channel)
 {
     int fd = channel->fd();
     channels_.erase(fd);
 
     LOG_INFO("func=%s => fd=%d\n", __FUNCTION__, fd);
-    
+
     int index = channel->index();
     if (index == kAdded)
     {
@@ -118,9 +123,9 @@ void EPollPoller::removeChannel(Channel *channel)
 // 填写活跃的连接
 void EPollPoller::fillActiveChannels(int numEvents, ChannelList *activeChannels) const
 {
-    for (int i=0; i < numEvents; ++i)
+    for (int i = 0; i < numEvents; ++i)
     {
-        Channel *channel = static_cast<Channel*>(events_[i].data.ptr);
+        Channel *channel = static_cast<Channel *>(events_[i].data.ptr);
         channel->set_revents(events_[i].events);
         activeChannels->push_back(channel); // EventLoop就拿到了它的poller给它返回的所有发生事件的channel列表了
     }
@@ -131,13 +136,13 @@ void EPollPoller::update(int operation, Channel *channel)
 {
     epoll_event event;
     bzero(&event, sizeof event);
-    
+
     int fd = channel->fd();
 
     event.events = channel->events();
-    event.data.fd = fd; 
+    event.data.fd = fd;
     event.data.ptr = channel;
-    
+
     if (::epoll_ctl(epollfd_, operation, fd, &event) < 0)
     {
         if (operation == EPOLL_CTL_DEL)

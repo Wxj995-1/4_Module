@@ -1,5 +1,4 @@
 #pragma once
-
 #include "noncopyable.h"
 #include "Timestamp.h"
 
@@ -13,7 +12,7 @@ class EventLoop;
 class Poller : noncopyable
 {
 public:
-    using ChannelList = std::vector<Channel*>;
+    using ChannelList = std::vector<Channel *>;
 
     Poller(EventLoop *loop);
     virtual ~Poller() = default;
@@ -22,16 +21,18 @@ public:
     virtual Timestamp poll(int timeoutMs, ChannelList *activeChannels) = 0;
     virtual void updateChannel(Channel *channel) = 0;
     virtual void removeChannel(Channel *channel) = 0;
-    
+
     // 判断参数channel是否在当前Poller当中
     bool hasChannel(Channel *channel) const;
 
     // EventLoop可以通过该接口获取默认的IO复用的具体实现
-    static Poller* newDefaultPoller(EventLoop *loop);
+    static Poller *newDefaultPoller(EventLoop *loop);
+
 protected:
     // map的key：sockfd  value：sockfd所属的channel通道类型
-    using ChannelMap = std::unordered_map<int, Channel*>;
+    using ChannelMap = std::unordered_map<int, Channel *>;
     ChannelMap channels_;
+
 private:
     EventLoop *ownerLoop_; // 定义Poller所属的事件循环EventLoop
 };
