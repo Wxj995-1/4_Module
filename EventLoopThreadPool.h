@@ -9,6 +9,7 @@
 class EventLoop;
 class EventLoopThread;
 
+// 创建、管理一批「线程 + EventLoop」单元，让主线程（mainReactor）把客户端连接均匀分发给子线程（subReactor）处理。
 class EventLoopThreadPool : noncopyable
 {
 public:
@@ -30,7 +31,7 @@ public:
     const std::string name() const { return name_; }
 
 private:
-    EventLoop *baseLoop_; // EventLoop loop;   主线程的EventLoop（MainReactor）
+    EventLoop *baseLoop_; // 主线程的EventLoop（MainReactor）
     std::string name_;
     bool started_;
     int numThreads_;

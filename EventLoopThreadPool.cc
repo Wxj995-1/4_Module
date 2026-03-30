@@ -22,6 +22,7 @@ void EventLoopThreadPool::start(const ThreadInitCallback &cb)
         char buf[name_.size() + 32];
         snprintf(buf, sizeof buf, "%s%d", name_.c_str(), i);
         EventLoopThread *t = new EventLoopThread(cb, buf);
+        //利用 C++11 移动语义，执行了 std::unique_ptr 的移动构造，将临时右值的所有权转移给 vector，全程无任何拷贝操作。
         threads_.push_back(std::unique_ptr<EventLoopThread>(t));
         loops_.push_back(t->startLoop()); // 底层创建线程，绑定一个新的EventLoop，并返回该loop的地址
     }
