@@ -4,16 +4,15 @@
 #include <memory>
 
 EventLoopThreadPool::EventLoopThreadPool(EventLoop *baseLoop, const std::string &nameArg)
-    : baseLoop_(baseLoop)
-    , name_(nameArg)
-    , started_(false)
-    , numThreads_(0)
-    , next_(0)
-{}
+    : baseLoop_(baseLoop), name_(nameArg), started_(false), numThreads_(0), next_(0)
+{
+}
 
 EventLoopThreadPool::~EventLoopThreadPool()
-{}
+{
+}
 
+// 创建所有子线程，让每个子线程创建自己的 EventLoop 并启动循环
 void EventLoopThreadPool::start(const ThreadInitCallback &cb)
 {
     started_ = true;
@@ -35,7 +34,7 @@ void EventLoopThreadPool::start(const ThreadInitCallback &cb)
 }
 
 // 如果工作在多线程中，baseLoop_默认以轮询的方式分配channel给subloop
-EventLoop* EventLoopThreadPool::getNextLoop()
+EventLoop *EventLoopThreadPool::getNextLoop()
 {
     EventLoop *loop = baseLoop_;
 
@@ -52,11 +51,11 @@ EventLoop* EventLoopThreadPool::getNextLoop()
     return loop;
 }
 
-std::vector<EventLoop*> EventLoopThreadPool::getAllLoops()
+std::vector<EventLoop *> EventLoopThreadPool::getAllLoops()
 {
     if (loops_.empty())
     {
-        return std::vector<EventLoop*>(1, baseLoop_);
+        return std::vector<EventLoop *>(1, baseLoop_);
     }
     else
     {
