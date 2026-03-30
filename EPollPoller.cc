@@ -121,6 +121,17 @@ void EPollPoller::removeChannel(Channel *channel)
 }
 
 // 填写活跃的连接
+/*
+EventLoop.loop()
+  ↓
+EPollPoller.poll()  → 调用 epoll_wait() 得到就绪事件
+  ↓
+fillActiveChannels() → **内核事件 → Channel 转换**
+  ↓
+EventLoop 遍历 activeChannels，执行 Channel.handleEvent()
+
+*/
+
 void EPollPoller::fillActiveChannels(int numEvents, ChannelList *activeChannels) const
 {
     for (int i = 0; i < numEvents; ++i)

@@ -27,13 +27,7 @@ int createEventfd()
 }
 
 EventLoop::EventLoop()
-    : looping_(false)
-    , quit_(false)
-    , callingPendingFunctors_(false)
-    , threadId_(CurrentThread::tid())
-    , poller_(Poller::newDefaultPoller(this))
-    , wakeupFd_(createEventfd())
-    , wakeupChannel_(new Channel(this, wakeupFd_))
+    : looping_(false), quit_(false), callingPendingFunctors_(false), threadId_(CurrentThread::tid()), poller_(Poller::newDefaultPoller(this)), wakeupFd_(createEventfd()), wakeupChannel_(new Channel(this, wakeupFd_))
 {
     LOG_DEBUG("EventLoop created %p in thread %d \n", this, threadId_);
     if (t_loopInThisThread)
@@ -67,7 +61,7 @@ void EventLoop::loop()
 
     LOG_INFO("EventLoop %p start looping \n", this);
 
-    while(!quit_)
+    while (!quit_)
     {
         activeChannels_.clear();
         // 监听两类fd   一种是client的fd，一种wakeupfd
@@ -81,7 +75,7 @@ void EventLoop::loop()
         /**
          * IO线程 mainLoop accept fd《=channel subloop
          * mainLoop 事先注册一个回调cb（需要subloop来执行）    wakeup subloop后，执行下面的方法，执行之前mainloop注册的cb操作
-         */ 
+         */
         doPendingFunctors();
     }
 
@@ -92,17 +86,17 @@ void EventLoop::loop()
 // 退出事件循环  1.loop在自己的线程中调用quit  2.在非loop的线程中，调用loop的quit
 /**
  *              mainLoop
- * 
+ *
  *                                             no ==================== 生产者-消费者的线程安全的队列
- * 
+ *
  *  subLoop1     subLoop2     subLoop3
- */ 
+ */
 void EventLoop::quit()
 {
     quit_ = true;
 
     // 如果是在其它线程中，调用的quit   在一个subloop(woker)中，调用了mainLoop(IO)的quit
-    if (!isInLoopThread())  
+    if (!isInLoopThread())
     {
         wakeup();
     }
@@ -130,7 +124,7 @@ void EventLoop::queueInLoop(Functor cb)
 
     // 唤醒相应的，需要执行上面回调操作的loop的线程了
     // || callingPendingFunctors_的意思是：当前loop正在执行回调，但是loop又有了新的回调
-    if (!isInLoopThread() || callingPendingFunctors_) 
+    if (!isInLoopThread() || callingPendingFunctors_)
     {
         wakeup(); // 唤醒loop所在线程
     }
@@ -138,19 +132,22 @@ void EventLoop::queueInLoop(Functor cb)
 
 void EventLoop::handleRead()
 {
-  uint64_t one = 1;
-  ssize_t n = read(wakeupFd_, &one, sizeof one);
-  if (n != sizeof one)
-  {
-    LOG_ERROR("EventLoop::handleRead() reads %lu bytes instead of 8", n);
-  }
+    uint64_t one = 1;
+    ssize_t n = read(wakeupFd_, &one, sizeof one);
+    if (n != sizeof one)
+    {
+        LOG_ERROR("EventLoop::handleRead() reads %lu bytes instead of 8", n);
+    }
 }
 
 // 用来唤醒loop所在的线程的  向wakeupfd_写一个数据，wakeupChannel就发生读事件，当前loop线程就会被唤醒
 void EventLoop::wakeup()
 {
+    // 1. 定义要写入eventfd的8字节数据（值任意，1即可）
     uint64_t one = 1;
+    // 2. 向wakeupFd_写入8字节数据 → 触发内核事件，唤醒线程
     ssize_t n = write(wakeupFd_, &one, sizeof one);
+    // 3. 错误校验：eventfd必须读写8字节，否则打印错误日志
     if (n != sizeof one)
     {
         LOG_ERROR("EventLoop::wakeup() writes %lu bytes instead of 8 \n", n);
@@ -163,6 +160,24 @@ void EventLoop::updateChannel(Channel *channel)
     poller_->updateChannel(channel);
 }
 
+/*
+EventLoop（反应堆）：只做调度、对外提供接口，不碰底层 epoll
+Poller/EPollPoller（多路复用器）：真正操作 epoll 内核、管理所有 Channel
+Channel（事件）：被 Poller 管理，只属于一个 EventLoop
+
+底层全部调用 EPollPoller，真正操作 epoll 内核和 Channel 列表；
+EventLoop 指挥 Poller，Poller 管理 Channel
+
+
+上层（TcpConnection/Acceptor）
+    ↓
+EventLoop::removeChannel （转发）
+    ↓
+EPollPoller::removeChannel （执行）
+    ↓
+epoll_ctl(EPOLL_CTL_DEL) （系统调用，内核删除）
+
+*/
 void EventLoop::removeChannel(Channel *channel)
 {
     poller_->removeChannel(channel);
