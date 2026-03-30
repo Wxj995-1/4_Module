@@ -123,10 +123,11 @@ void EventLoop::queueInLoop(Functor cb)
     }
 
     // 唤醒相应的，需要执行上面回调操作的loop的线程了
-    // || callingPendingFunctors_的意思是：当前loop正在执行回调，但是loop又有了新的回调
-    if (!isInLoopThread() || callingPendingFunctors_)
+    // 满足任意一个条件，就必须唤醒
+    if (!isInLoopThread()           // 条件1：当前不是loop自己的线程（跨线程调用）
+        || callingPendingFunctors_) // 条件2：当前loop正在执行回调，又加了新任务
     {
-        wakeup(); // 唤醒loop所在线程
+        wakeup(); // 唤醒loop线程，立即处理任务
     }
 }
 
@@ -145,7 +146,7 @@ void EventLoop::wakeup()
 {
     // 1. 定义要写入eventfd的8字节数据（值任意，1即可）
     uint64_t one = 1;
-    // 2. 向wakeupFd_写入8字节数据 → 触发内核事件，唤醒线程
+    // 2. 向wakeupFd_写入8字节数据 => 触发内核事件，唤醒线程
     ssize_t n = write(wakeupFd_, &one, sizeof one);
     // 3. 错误校验：eventfd必须读写8字节，否则打印错误日志
     if (n != sizeof one)

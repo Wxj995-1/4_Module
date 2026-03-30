@@ -9,6 +9,11 @@
 #include <string>
 #include <atomic>
 
+/*
+one loop per thread：一个线程 = 一个 EventLoop
+主从 Reactor：mainLoop（1 个） + subLoop（N 个，线程池）
+*/
+
 class Thread : noncopyable
 {
 public:
@@ -22,9 +27,10 @@ public:
 
     bool started() const { return started_; }
     pid_t tid() const { return tid_; }
-    const std::string& name() const { return name_; }
+    const std::string &name() const { return name_; }
 
     static int numCreated() { return numCreated_; }
+
 private:
     void setDefaultName();
 
