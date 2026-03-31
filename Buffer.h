@@ -5,19 +5,38 @@
 #include <algorithm>
 
 // 网络库底层的缓冲器类型定义
+/// A buffer class modeled after org.jboss.netty.buffer.ChannelBuffer
+/// +-------------------+------------------+------------------+
+/// | prependable bytes |  readable bytes  |  writable bytes  |
+/// |                   |     (CONTENT)    |                  |
+/// +-------------------+------------------+------------------+
+/// |                   |                  |                  |
+/// 0      <=      readerIndex   <=   writerIndex    <=     size
+
+/*
++-------------------+------------------+------------------+
+|  前置区(prepend)  |   可读缓冲区     |   可写缓冲区     |
+|  (预留8字节)      |  (已写未读数据)  |  (空闲空间)      |
++-------------------+------------------+------------------+
+↑                   ↑                  ↑
+0              readerIndex          writerIndex
+*/
+
 class Buffer
 {
 public:
+    /*
+    32 位系统占 4字节，64 位系统占 8字节；
+    */
     static const size_t kCheapPrepend = 8;
     static const size_t kInitialSize = 1024;
 
     explicit Buffer(size_t initialSize = kInitialSize)
-        : buffer_(kCheapPrepend + initialSize)
-        , readerIndex_(kCheapPrepend)
-        , writerIndex_(kCheapPrepend)
-    {}
+        : buffer_(kCheapPrepend + initialSize), readerIndex_(kCheapPrepend), writerIndex_(kCheapPrepend)
+    {
+    }
 
-    size_t readableBytes() const 
+    size_t readableBytes() const
     {
         return writerIndex_ - readerIndex_;
     }
@@ -33,24 +52,29 @@ public:
     }
 
     // 返回缓冲区中可读数据的起始地址
-    const char* peek() const
+    const char *peek() const
     {
         return begin() + readerIndex_;
     }
 
-    // onMessage string <- Buffer
+    // onMessage string <- Buffer  释放指定长度的有效数据（读一部分）
+    // onMessage string <- Buffer  注释含义：业务层从Buffer取数据
     void retrieve(size_t len)
     {
+        // 情况1：要释放的长度 < 有效数据总长度 → 只释放一部分
         if (len < readableBytes())
         {
-            readerIndex_ += len; // 应用只读取了刻度缓冲区数据的一部分，就是len，还剩下readerIndex_ += len -> writerIndex_
+            // 读指针向后移动len，标记这len字节数据已读、可覆盖
+            readerIndex_ += len;
         }
-        else   // len == readableBytes()
+        // 情况2：要释放的长度 ≥ 有效数据 → 直接释放全部
+        else // 等价于 len == readableBytes()
         {
             retrieveAll();
         }
     }
 
+    // 释放所有有效数据（读完全部）
     void retrieveAll()
     {
         readerIndex_ = writerIndex_ = kCheapPrepend;
@@ -82,34 +106,40 @@ public:
     void append(const char *data, size_t len)
     {
         ensureWriteableBytes(len);
-        std::copy(data, data+len, beginWrite());
+        std::copy(data, data + len, beginWrite());
         writerIndex_ += len;
     }
 
-    char* beginWrite()
+    char *beginWrite()
     {
         return begin() + writerIndex_;
     }
 
-    const char* beginWrite() const
+    const char *beginWrite() const
     {
         return begin() + writerIndex_;
     }
 
     // 从fd上读取数据
-    ssize_t readFd(int fd, int* saveErrno);
+    ssize_t readFd(int fd, int *saveErrno);
     // 通过fd发送数据
-    ssize_t writeFd(int fd, int* saveErrno);
+    ssize_t writeFd(int fd, int *saveErrno);
+
 private:
-    char* begin()
+    char *begin()
     {
         // it.operator*()
-        return &*buffer_.begin();  // vector底层数组首元素的地址，也就是数组的起始地址
+        return &*buffer_.begin(); // vector底层数组首元素的地址，也就是数组的起始地址
     }
-    const char* begin() const
+    const char *begin() const
     {
         return &*buffer_.begin();
     }
+
+    /*
+    总空闲空间不足 → 直接扩容（vector resize）
+    总空闲空间足够 → 数据前移整理内存（不扩容，复用空闲空间）
+    */
     void makeSpace(size_t len)
     {
         if (writableBytes() + prependableBytes() < len + kCheapPrepend)
@@ -119,11 +149,13 @@ private:
         else
         {
             size_t readalbe = readableBytes();
-            std::copy(begin() + readerIndex_, 
-                    begin() + writerIndex_,
-                    begin() + kCheapPrepend);
-            readerIndex_ = kCheapPrepend;
-            writerIndex_ = readerIndex_ + readalbe;
+            std::copy(
+                begin() + readerIndex_, // 原数据起始：可读区开头
+                begin() + writerIndex_, // 原数据结束：可读区结尾
+                begin() + kCheapPrepend // 目标位置：8字节头部之后
+            );
+            readerIndex_ = kCheapPrepend;           // 读指针回到8字节位置
+            writerIndex_ = readerIndex_ + readalbe; // 写指针 = 读指针+有效数据长度
         }
     }
 
