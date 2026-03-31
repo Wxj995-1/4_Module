@@ -2,7 +2,7 @@
 
 /**
  * 用户使用muduo编写服务器程序
- */ 
+ */
 #include "EventLoop.h"
 #include "Acceptor.h"
 #include "InetAddress.h"
@@ -18,11 +18,16 @@
 #include <atomic>
 #include <unordered_map>
 
+/*
+它是主从 Reactor 模型的最终实现者，把所有底层组件整合在一起，
+用户只需要和它交互，完全不用管底层的 socket、epoll、线程、连接管理。
+*/
+
 // 对外的服务器编程使用的类
 class TcpServer : noncopyable
 {
 public:
-    using ThreadInitCallback = std::function<void(EventLoop*)>;
+    using ThreadInitCallback = std::function<void(EventLoop *)>;
 
     enum Option
     {
@@ -31,9 +36,9 @@ public:
     };
 
     TcpServer(EventLoop *loop,
-                const InetAddress &listenAddr,
-                const std::string &nameArg,
-                Option option = kNoReusePort);
+              const InetAddress &listenAddr,
+              const std::string &nameArg,
+              Option option = kNoReusePort);
     ~TcpServer();
 
     void setThreadInitcallback(const ThreadInitCallback &cb) { threadInitCallback_ = cb; }
@@ -46,6 +51,7 @@ public:
 
     // 开启服务器监听
     void start();
+
 private:
     void newConnection(int sockfd, const InetAddress &peerAddr);
     void removeConnection(const TcpConnectionPtr &conn);
@@ -62,8 +68,8 @@ private:
 
     std::shared_ptr<EventLoopThreadPool> threadPool_; // one loop per thread
 
-    ConnectionCallback connectionCallback_; // 有新连接时的回调
-    MessageCallback messageCallback_; // 有读写消息时的回调
+    ConnectionCallback connectionCallback_;       // 有新连接时的回调
+    MessageCallback messageCallback_;             // 有读写消息时的回调
     WriteCompleteCallback writeCompleteCallback_; // 消息发送完成以后的回调
 
     ThreadInitCallback threadInitCallback_; // loop线程初始化的回调
