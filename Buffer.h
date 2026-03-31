@@ -86,10 +86,16 @@ public:
         return retrieveAsString(readableBytes()); // 应用可读取数据的长度
     }
 
+    // 从Buffer读取len长度数据，转为string返回，并释放缓冲区对应空间
     std::string retrieveAsString(size_t len)
     {
+        // 从Buffer可读区，取len字节数据，构造string
         std::string result(peek(), len);
-        retrieve(len); // 上面一句把缓冲区中可读的数据，已经读取出来，这里肯定要对缓冲区进行复位操作
+
+        // 数据已经拷贝到string，释放Buffer中的这部分数据
+        retrieve(len);
+
+        // 返回构造好的字符串
         return result;
     }
 
