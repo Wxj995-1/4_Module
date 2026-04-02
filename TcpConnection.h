@@ -23,6 +23,16 @@ class Socket;
  * 是服务器与单个客户端通信的唯一桥梁，也是业务层和网络底层的交互入口。
  *
  */
+
+/*
+    std::enable_shared_from_this：安全的共享指针
+    让类内部可以通过 shared_from_this() 获取自身的 shared_ptr
+
+    TcpConnection 的生命周期完全不可控（客户端随时断开），所有异步回调（读、写、关闭）都需要保证
+    执行回调时，对象还存在
+    用shared_ptr管理生命周期，enable_shared_from_this 是安全获取自身智能指针的唯一方式。
+
+*/
 class TcpConnection : noncopyable, public std::enable_shared_from_this<TcpConnection>
 {
 public:
